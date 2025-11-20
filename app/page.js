@@ -398,9 +398,10 @@ export default function BookstoreApp() {
                 </p>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 sm:gap-8">
                   {filteredAndSortedBooks.map(book => (
-                    <div 
-                      key={book.isbn} 
-                      className="border border-gray-300 hover:border-gray-400 transition group"
+                    <a
+                      key={book.isbn}
+                      href={`/product/${book.isbn}`}
+                      className="border border-gray-300 hover:border-gray-400 transition group block"
                     >
                       <div className="relative overflow-hidden bg-gray-100">
                         {book.image_url ? (
@@ -434,14 +435,17 @@ export default function BookstoreApp() {
                           </span>
                         </div>
                         <button
-                          onClick={() => addToCart(book)}
+                          onClick={(e) => {
+                            e.preventDefault();
+                            addToCart(book);
+                          }}
                           className="w-full py-2 sm:py-3 border border-black hover:bg-black hover:text-white transition disabled:opacity-50 disabled:cursor-not-allowed text-sm sm:text-base font-semibold"
                           disabled={book.stock === 0}
                         >
                           {book.stock > 0 ? 'Add to Cart' : 'Out of Stock'}
                         </button>
                       </div>
-                    </div>
+                    </a>
                   ))}
                 </div>
               </div>
