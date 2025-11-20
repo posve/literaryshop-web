@@ -1,0 +1,113 @@
+# Ciengarnia robots.txt
+# Allow legitimate search engines and services while blocking malicious scrapers
+
+# Default: Block all bots except those explicitly allowed
+User-agent: *
+Disallow: /
+
+# Allow major search engines
+User-agent: Googlebot
+Allow: /
+
+User-agent: Googlebot-Image
+Allow: /
+
+User-agent: Bingbot
+Allow: /
+
+User-agent: Slurp
+Allow: /
+
+User-agent: DuckDuckBot
+Allow: /
+
+User-agent: Baiduspider
+Allow: /
+
+User-agent: Yandexbot
+Allow: /
+
+# Allow privacy-focused search engines
+User-agent: BraveBot
+Allow: /
+
+User-agent: Ecosia
+Allow: /
+
+User-agent: QwantBot
+Allow: /
+
+# Allow legitimate archives and preservation services
+User-agent: ia_archiver
+Allow: /
+
+User-agent: archive.org_bot
+Allow: /
+
+# Allow accessibility services
+User-agent: W3C-checklink
+Allow: /
+
+User-agent: W3C_Validator
+Allow: /
+
+# Explicitly block AI and LLM scraper bots
+User-agent: ChatGPT-User
+Disallow: /
+
+User-agent: GPTBot
+Disallow: /
+
+User-agent: CCBot
+Disallow: /
+
+User-agent: anthropic-ai
+Disallow: /
+
+User-agent: Claude-Web
+Disallow: /
+
+User-agent: APIClient
+Disallow: /
+
+User-agent: Applebot
+Disallow: /
+
+User-agent: Perplexity
+Disallow: /
+
+User-agent: PerplexityBot
+Disallow: /
+
+User-agent: YouBot
+Disallow: /
+
+User-agent: facebookexternalhit
+Disallow: /
+
+User-agent: curl
+Disallow: /
+
+User-agent: wget
+Disallow: /
+
+User-agent: python-requests
+Disallow: /
+
+User-agent: scrapy
+Disallow: /
+
+User-agent: MJ12bot
+Disallow: /
+
+User-agent: SEMrushBot
+Disallow: /
+
+User-agent: SemrushBot
+Disallow: /
+
+User-agent: AhrefsBot
+Disallow: /
+
+# Sitemap - helps search engines find your content efficiently
+Sitemap: https://ciengarnia.com/sitemap.xml

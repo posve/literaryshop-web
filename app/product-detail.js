@@ -2,7 +2,8 @@
 
 import React, { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
-import { ArrowLeft, Star, ShoppingCart, Heart } from 'lucide-react';
+import { ArrowLeft, ShoppingCart, Heart } from 'lucide-react';
+import PrivacyNotice from './components/PrivacyNotice';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api';
 
@@ -257,8 +258,48 @@ export default function ProductDetail() {
     return cartItems.reduce((sum, item) => sum + (parseFloat(item.price) * item.quantity), 0);
   };
 
+  // Schema.org Book markup for SEO
+  const bookSchema = book ? {
+    '@context': 'https://schema.org',
+    '@type': 'Book',
+    name: book.title,
+    author: {
+      '@type': 'Person',
+      name: book.author,
+    },
+    isbn: book.isbn,
+    image: images.length > 0 ? images[0].scaleway_url || images[0].url : '',
+    description: book.description || '',
+    publisher: {
+      '@type': 'Organization',
+      name: book.publisher_name || 'Ciengarnia',
+    },
+    datePublished: book.publication_date ? new Date(book.publication_date).toISOString().split('T')[0] : '',
+    offers: {
+      '@type': 'Offer',
+      url: `https://ciengarnia.com/product/${book.isbn}`,
+      priceCurrency: 'EUR',
+      price: book.price,
+      availability: 'https://schema.org/' + (book.stock > 0 ? 'InStock' : 'OutOfStock'),
+    },
+    aggregateRating: {
+      '@type': 'AggregateRating',
+      ratingValue: '5',
+      bestRating: '5',
+      worstRating: '1',
+      ratingCount: '1',
+    },
+  } : null;
+
   return (
     <div className="min-h-screen bg-gray-50">
+      {/* Schema.org Book Markup */}
+      {bookSchema && (
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(bookSchema) }}
+        />
+      )}
       {/* SUCCESS MESSAGE */}
       {successMessage && (
         <div className="fixed top-24 right-4 bg-green-500 text-white px-6 py-3 rounded-lg shadow-lg z-40 animate-pulse">
@@ -269,9 +310,8 @@ export default function ProductDetail() {
       {/* STICKY HEADER WITH CART */}
       <div className="bg-white border-b border-gray-200 sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-6 py-4 flex justify-between items-center">
-          <a href="/" className="flex items-center gap-2 text-slate-600 hover:text-slate-900">
-            <ArrowLeft className="w-4 h-4" />
-            Back to Catalog
+          <a href="/" className="flex items-center gap-2 text-slate-900 hover:text-slate-700 font-serif text-xl">
+            Ciengarnia
           </a>
 
           <div className="flex items-center gap-4">
@@ -280,9 +320,9 @@ export default function ProductDetail() {
               className="relative flex items-center gap-2 text-slate-600 hover:text-slate-900 font-medium"
             >
               <ShoppingCart className="w-5 h-5" />
-              Shopping Cart
+              Cart
               {cartItems.length > 0 && (
-                <span className="absolute top-0 right-0 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center transform translate-x-2 -translate-y-2">
+                <span className="absolute top-0 right-0 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center transform translate-x-2 -translate-y-2 font-bold">
                   {cartItems.length}
                 </span>
               )}
@@ -360,7 +400,7 @@ export default function ProductDetail() {
                 : 'border-transparent text-slate-600 hover:text-slate-900'
             }`}
           >
-            DETAILS
+            DESCRIPTION
           </button>
         </div>
 
@@ -413,17 +453,9 @@ export default function ProductDetail() {
                 {/* DIVIDER */}
                 <hr className="my-8" />
 
-                {/* RATING & PRICE */}
-                <div className="flex items-center gap-6 mb-8">
-                  <div className="flex items-center gap-2">
-                    <div className="flex text-yellow-400">
-                      {[...Array(5)].map((_, i) => (
-                        <Star key={i} className="w-5 h-5 fill-current" />
-                      ))}
-                    </div>
-                    <span className="text-sm text-slate-600">(245 reviews)</span>
-                  </div>
-                  <div className="text-4xl font-bold text-slate-900">${book.price}</div>
+                {/* PRICE */}
+                <div className="mb-8">
+                  <div className="text-4xl font-bold text-slate-900">€{book.price}</div>
                 </div>
 
                 {/* STOCK STATUS */}
@@ -485,11 +517,6 @@ export default function ProductDetail() {
                       className={`w-5 h-5 ${isInWishlist ? 'fill-current' : ''}`}
                     />
                   </button>
-                </div>
-
-                {/* PERK */}
-                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 text-sm text-blue-900">
-                  <span className="font-semibold">🎁</span> Free shipping on orders over $50
                 </div>
 
                 {/* DESCRIPTION */}
@@ -576,6 +603,9 @@ export default function ProductDetail() {
           </div>
         )}
       </div>
+
+      {/* Privacy Notice Banner */}
+      <PrivacyNotice />
     </div>
   );
 }

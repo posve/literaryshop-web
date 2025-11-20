@@ -2,13 +2,14 @@
 
 import React, { useState, useEffect } from 'react';
 import { ShoppingCart, Plus, Minus, Trash2, Book, MapPin, Package, Search, Filter, X, ChevronRight, Mail, Phone, MapPin as Location } from 'lucide-react';
+import PrivacyNotice from './components/PrivacyNotice';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api';
 
 const DELIVERY_OPTIONS = [
-  { id: 'standard', name: 'Standard Delivery', days: '5-7 business days', price: 5.99 },
-  { id: 'express', name: 'Express Delivery', days: '2-3 business days', price: 12.99 },
-  { id: 'international', name: 'International Delivery', days: '10-15 business days', price: 24.99 }
+  { id: 'standard', name: 'Standard Delivery', days: '5-7 business days', price: 5.50 },
+  { id: 'express', name: 'Express Delivery', days: '2-3 business days', price: 11.99 },
+  { id: 'international', name: 'International Delivery', days: '10-15 business days', price: 22.99 }
 ];
 
 export default function BookstoreApp() {
@@ -23,6 +24,11 @@ export default function BookstoreApp() {
     country: '',
     postalCode: ''
   });
+  const [consents, setConsents] = useState({
+    termsAccepted: false,
+    privacyAccepted: false,
+    shippingConsent: false,
+  });
   const [orderNumber, setOrderNumber] = useState('');
   const [books, setBooks] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -31,6 +37,8 @@ export default function BookstoreApp() {
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [showFilters, setShowFilters] = useState(false);
   const [sortBy, setSortBy] = useState('title');
+  const [csrfToken, setCsrfToken] = useState('');
+  const [paymentInfo, setPaymentInfo] = useState(null);
 
   // Load cart from localStorage on mount
   useEffect(() => {
@@ -52,6 +60,22 @@ export default function BookstoreApp() {
       localStorage.removeItem('bookstore_cart');
     }
   }, [cart]);
+
+  // Fetch CSRF token on component mount
+  useEffect(() => {
+    const fetchCsrfToken = async () => {
+      try {
+        const response = await fetch(`${API_URL}/csrf-token`);
+        if (response.ok) {
+          const data = await response.json();
+          setCsrfToken(data.token);
+        }
+      } catch (err) {
+        console.error('Failed to fetch CSRF token');
+      }
+    };
+    fetchCsrfToken();
+  }, []);
 
   useEffect(() => {
     loadBooks();
@@ -167,6 +191,85 @@ export default function BookstoreApp() {
     setCart(cart.filter(item => item.isbn !== isbn));
   };
 
+  // Input validation functions
+  const validateEmail = (email) => {
+    if (email.length > 254) return false;
+    const parts = email.split('@');
+    if (parts.length !== 2) return false;
+    const [localPart, domain] = parts;
+    if (localPart.length === 0 || localPart.length > 64) return false;
+    if (!/^[a-zA-Z0-9._%-]+$/.test(localPart)) return false;
+    if (!/^[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(domain)) return false;
+    return true;
+  };
+
+  const validateName = (name) => {
+    if (name.length < 2 || name.length > 50) return false;
+    return /^[a-zA-Z\s'-]{2,50}$/.test(name);
+  };
+
+  const validateAddress = (address) => {
+    if (address.length < 5 || address.length > 100) return false;
+    return /^[a-zA-Z0-9\s,.-]{5,100}$/.test(address);
+  };
+
+  const validatePostalCode = (code) => {
+    if (code.length < 3 || code.length > 20) return false;
+    return /^[a-zA-Z0-9\s-]{3,20}$/.test(code);
+  };
+
+  const validateCity = (city) => {
+    if (city.length < 2 || city.length > 50) return false;
+    return /^[a-zA-Z\s'-]{2,50}$/.test(city);
+  };
+
+  const validateCountry = (country) => {
+    if (country.length < 2 || country.length > 50) return false;
+    return /^[a-zA-Z\s'-]{2,50}$/.test(country);
+  };
+
+  const validateCustomerInfo = () => {
+    const errors = {};
+
+    if (!customerInfo.name.trim()) {
+      errors.name = 'Name is required';
+    } else if (!validateName(customerInfo.name)) {
+      errors.name = 'Name must be 2-50 characters and contain only letters, spaces, hyphens, and apostrophes';
+    }
+
+    if (!customerInfo.email.trim()) {
+      errors.email = 'Email is required';
+    } else if (!validateEmail(customerInfo.email)) {
+      errors.email = 'Please enter a valid email address';
+    }
+
+    if (!customerInfo.address.trim()) {
+      errors.address = 'Address is required';
+    } else if (!validateAddress(customerInfo.address)) {
+      errors.address = 'Address must be 5-100 characters';
+    }
+
+    if (!customerInfo.city.trim()) {
+      errors.city = 'City is required';
+    } else if (!validateCity(customerInfo.city)) {
+      errors.city = 'City must be 2-50 characters';
+    }
+
+    if (!customerInfo.postalCode.trim()) {
+      errors.postalCode = 'Postal code is required';
+    } else if (!validatePostalCode(customerInfo.postalCode)) {
+      errors.postalCode = 'Postal code must be 3-20 characters';
+    }
+
+    if (!customerInfo.country.trim()) {
+      errors.country = 'Country is required';
+    } else if (!validateCountry(customerInfo.country)) {
+      errors.country = 'Country must be 2-50 characters';
+    }
+
+    return errors;
+  };
+
   const getSubtotal = () => {
     return cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
   };
@@ -189,25 +292,22 @@ export default function BookstoreApp() {
     setView('checkout');
   };
 
-  const validateEmail = (email) => {
-    const re = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    return re.test(email);
-  };
-
   const handlePlaceOrder = async () => {
-    if (!customerInfo.name || !customerInfo.email || !customerInfo.address || 
-        !customerInfo.city || !customerInfo.postalCode || !customerInfo.country) {
-      alert('Please fill in all required fields');
-      return;
-    }
-
-    if (!validateEmail(customerInfo.email)) {
-      alert('Please enter a valid email address');
+    // Validate all customer information
+    const validationErrors = validateCustomerInfo();
+    if (Object.keys(validationErrors).length > 0) {
+      const errorMessages = Object.values(validationErrors).join('\n');
+      alert('Please correct the following errors:\n\n' + errorMessages);
       return;
     }
 
     if (cart.length === 0) {
       alert('Your cart is empty');
+      return;
+    }
+
+    if (!consents.termsAccepted || !consents.privacyAccepted || !consents.shippingConsent) {
+      alert('Please accept all required terms and conditions to continue');
       return;
     }
 
@@ -227,7 +327,9 @@ export default function BookstoreApp() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'X-CSRF-Token': csrfToken,
         },
+        credentials: 'include',
         body: JSON.stringify(orderData)
       });
 
@@ -237,6 +339,18 @@ export default function BookstoreApp() {
 
       const result = await response.json();
       setOrderNumber(result.orderId || 'ORD-' + Date.now().toString().slice(-8));
+
+      // Fetch payment info from backend
+      try {
+        const paymentResponse = await fetch(`${API_URL}/payment-info`);
+        if (paymentResponse.ok) {
+          const payment = await paymentResponse.json();
+          setPaymentInfo(payment);
+        }
+      } catch (err) {
+        console.error('Failed to fetch payment info');
+      }
+
       window.scrollTo({ top: 0, behavior: 'smooth' });
       setView('confirmation');
     } catch (err) {
@@ -294,7 +408,7 @@ export default function BookstoreApp() {
       <header className="sticky top-0 bg-white border-b border-gray-300 z-50 shadow-sm">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
           <div className="flex justify-between items-center">
-            <button 
+            <button
               onClick={() => {
                 setView('catalog');
                 window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -303,7 +417,7 @@ export default function BookstoreApp() {
             >
               <Book className="w-6 h-6 sm:w-8 sm:h-8" />
               <div className="text-left">
-                <h1 className="text-xl sm:text-2xl font-serif leading-tight">Rare & Fine Books</h1>
+                <h1 className="text-xl sm:text-2xl font-serif leading-tight">Ciengarnia</h1>
                 <p className="text-xs text-gray-500 hidden sm:block">Curated for discerning collectors</p>
               </div>
             </button>
@@ -334,7 +448,7 @@ export default function BookstoreApp() {
             <div className="mb-8 sm:mb-12 text-center">
               <h2 className="text-3xl sm:text-4xl lg:text-5xl font-serif mb-3 sm:mb-4">Discover Literary Excellence</h2>
               <p className="text-gray-600 max-w-2xl mx-auto text-sm sm:text-base">
-                Each volume in our collection has been carefully selected for its literary merit, 
+                Each volume in our collection has been carefully selected for its literary merit,
                 historical significance, and exceptional quality.
               </p>
             </div>
@@ -423,7 +537,7 @@ export default function BookstoreApp() {
                     <a
                       key={book.isbn}
                       href={`/product/${book.isbn}`}
-                      className="border border-gray-300 hover:border-gray-400 transition group block"
+                      className="border border-gray-300 hover:border-gray-400 hover:shadow-lg transition group block rounded-lg overflow-hidden"
                     >
                       <div className="relative overflow-hidden bg-gray-100">
                         {book.image_url ? (
@@ -447,11 +561,11 @@ export default function BookstoreApp() {
                         )}
                       </div>
                       <div className="p-4 sm:p-6">
-                        <h3 className="text-lg sm:text-xl font-serif mb-2 line-clamp-2">{book.title}</h3>
+                        <h3 className="text-lg sm:text-xl font-bold mb-2 line-clamp-2">{book.title}</h3>
                         <p className="text-gray-600 mb-2 text-sm sm:text-base">{book.author}</p>
                         <p className="text-sm text-gray-500 mb-3 line-clamp-2">{book.description}</p>
                         <div className="flex justify-between items-center mb-4">
-                          <span className="text-xl sm:text-2xl font-bold">${Number(book.price).toFixed(2)}</span>
+                          <span className="text-xl sm:text-2xl font-bold">€{Number(book.price).toFixed(2)}</span>
                           <span className={`text-xs sm:text-sm ${book.stock > 0 ? 'text-gray-500' : 'text-red-600'}`}>
                             {book.stock > 0 ? `${book.stock} in stock` : 'Out of stock'}
                           </span>
@@ -461,7 +575,7 @@ export default function BookstoreApp() {
                             e.preventDefault();
                             addToCart(book);
                           }}
-                          className="w-full py-2 sm:py-3 border border-black hover:bg-black hover:text-white transition disabled:opacity-50 disabled:cursor-not-allowed text-sm sm:text-base font-semibold"
+                          className="w-full py-2 sm:py-3 border border-black hover:bg-black hover:text-white transition disabled:opacity-50 disabled:cursor-not-allowed text-sm sm:text-base font-semibold rounded"
                           disabled={book.stock === 0}
                         >
                           {book.stock > 0 ? 'Add to Cart' : 'Out of Stock'}
@@ -525,7 +639,7 @@ export default function BookstoreApp() {
                           <h3 className="text-lg sm:text-xl font-serif mb-1 line-clamp-2">{item.title}</h3>
                           <p className="text-gray-600 mb-2 text-sm sm:text-base">{item.author}</p>
                           <p className="text-sm text-gray-500 mb-1">ISBN: {item.isbn}</p>
-                          <p className="text-base sm:text-lg font-bold mb-3">${Number(item.price).toFixed(2)} each</p>
+                          <p className="text-base sm:text-lg font-bold mb-3">€{Number(item.price).toFixed(2)} each</p>
                           <div className="flex items-center gap-3">
                             <div className="flex items-center border border-gray-300">
                               <button
@@ -554,7 +668,7 @@ export default function BookstoreApp() {
                           </div>
                         </div>
                         <div className="text-right flex-shrink-0">
-                          <p className="text-lg sm:text-xl font-bold">${(item.price * item.quantity).toFixed(2)}</p>
+                          <p className="text-lg sm:text-xl font-bold">€{(item.price * item.quantity).toFixed(2)}</p>
                         </div>
                       </div>
                     </div>
@@ -565,7 +679,7 @@ export default function BookstoreApp() {
                   <div className="max-w-md ml-auto space-y-3 mb-6">
                     <div className="flex justify-between text-lg">
                       <span>Subtotal:</span>
-                      <span className="font-bold">${getSubtotal().toFixed(2)}</span>
+                      <span className="font-bold">€{getSubtotal().toFixed(2)}</span>
                     </div>
                     <p className="text-sm text-gray-500">Shipping and taxes calculated at checkout</p>
                   </div>
@@ -687,7 +801,7 @@ export default function BookstoreApp() {
                           <p className="font-semibold">{option.name}</p>
                           <p className="text-sm text-gray-600">{option.days}</p>
                         </div>
-                        <span className="font-bold text-lg">${option.price.toFixed(2)}</span>
+                        <span className="font-bold text-lg">€{option.price.toFixed(2)}</span>
                       </label>
                     ))}
                   </div>
@@ -702,27 +816,70 @@ export default function BookstoreApp() {
                     {cart.map(item => (
                       <div key={item.isbn} className="flex justify-between text-sm">
                         <span className="flex-1">{item.title} × {item.quantity}</span>
-                        <span className="font-semibold ml-2">${(item.price * item.quantity).toFixed(2)}</span>
+                        <span className="font-semibold ml-2">€{(item.price * item.quantity).toFixed(2)}</span>
                       </div>
                     ))}
                   </div>
                   <div className="border-t border-gray-300 pt-4 space-y-2">
                     <div className="flex justify-between">
                       <span>Subtotal:</span>
-                      <span>${getSubtotal().toFixed(2)}</span>
+                      <span>€{getSubtotal().toFixed(2)}</span>
                     </div>
                     <div className="flex justify-between">
                       <span>Delivery:</span>
-                      <span>${getDeliveryPrice().toFixed(2)}</span>
+                      <span>€{getDeliveryPrice().toFixed(2)}</span>
                     </div>
                     <div className="flex justify-between text-xl font-bold pt-2 border-t border-gray-300">
                       <span>Total:</span>
-                      <span>${getTotal().toFixed(2)}</span>
+                      <span>€{getTotal().toFixed(2)}</span>
                     </div>
                   </div>
+
+                  {/* Consent Checkboxes */}
+                  <div className="mt-6 space-y-3 border-t border-gray-300 pt-6">
+                    <label className="flex items-start gap-3 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={consents.termsAccepted}
+                        onChange={(e) => setConsents({...consents, termsAccepted: e.target.checked})}
+                        className="w-4 h-4 mt-1 border border-gray-300 rounded focus:ring-black focus:ring-1"
+                      />
+                      <span className="text-xs text-gray-700">
+                        I agree to the <a href="/terms-conditions" target="_blank" className="underline hover:no-underline">Terms & Conditions</a> *
+                      </span>
+                    </label>
+
+                    <label className="flex items-start gap-3 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={consents.privacyAccepted}
+                        onChange={(e) => setConsents({...consents, privacyAccepted: e.target.checked})}
+                        className="w-4 h-4 mt-1 border border-gray-300 rounded focus:ring-black focus:ring-1"
+                      />
+                      <span className="text-xs text-gray-700">
+                        I have read and agree to the <a href="/privacy-policy" target="_blank" className="underline hover:no-underline">Privacy Policy</a> and understand how my data will be processed *
+                      </span>
+                    </label>
+
+                    <label className="flex items-start gap-3 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={consents.shippingConsent}
+                        onChange={(e) => setConsents({...consents, shippingConsent: e.target.checked})}
+                        className="w-4 h-4 mt-1 border border-gray-300 rounded focus:ring-black focus:ring-1"
+                      />
+                      <span className="text-xs text-gray-700">
+                        I consent to be contacted about shipping options and delivery updates *
+                      </span>
+                    </label>
+
+                    <p className="text-xs text-gray-500 pt-2">* Required to place an order</p>
+                  </div>
+
                   <button
                     onClick={handlePlaceOrder}
-                    className="w-full mt-6 py-3 bg-black text-white hover:bg-gray-800 transition font-semibold"
+                    className="w-full mt-6 py-3 bg-black text-white hover:bg-gray-800 disabled:bg-gray-400 transition font-semibold"
+                    disabled={!consents.termsAccepted || !consents.privacyAccepted || !consents.shippingConsent}
                   >
                     Place Order
                   </button>
@@ -751,34 +908,40 @@ export default function BookstoreApp() {
               <div className="border border-gray-300 p-4 sm:p-6 mb-6 text-left bg-gray-50">
                 <h3 className="text-lg sm:text-xl font-serif mb-4">Payment Instructions</h3>
                 <p className="mb-4">Please transfer the total amount to our bank account:</p>
-                <div className="bg-white p-4 font-mono text-xs sm:text-sm space-y-2 border border-gray-200">
-                  <div className="grid grid-cols-3 gap-2">
-                    <strong className="col-span-1">Bank:</strong>
-                    <span className="col-span-2">National Trust Bank</span>
+                {paymentInfo ? (
+                  <div className="bg-white p-4 font-mono text-xs sm:text-sm space-y-2 border border-gray-200">
+                    <div className="grid grid-cols-3 gap-2">
+                      <strong className="col-span-1">Bank:</strong>
+                      <span className="col-span-2">{paymentInfo.bank}</span>
+                    </div>
+                    <div className="grid grid-cols-3 gap-2">
+                      <strong className="col-span-1">Account:</strong>
+                      <span className="col-span-2">{paymentInfo.accountName}</span>
+                    </div>
+                    <div className="grid grid-cols-3 gap-2">
+                      <strong className="col-span-1">Number:</strong>
+                      <span className="col-span-2">{paymentInfo.accountNumber}</span>
+                    </div>
+                    <div className="grid grid-cols-3 gap-2">
+                      <strong className="col-span-1">SWIFT:</strong>
+                      <span className="col-span-2">{paymentInfo.swiftCode}</span>
+                    </div>
+                    <div className="grid grid-cols-3 gap-2 pt-2 border-t border-gray-200">
+                      <strong className="col-span-1">Amount:</strong>
+                      <span className="col-span-2 text-lg font-bold">€{getTotal().toFixed(2)}</span>
+                    </div>
+                    <div className="grid grid-cols-3 gap-2">
+                      <strong className="col-span-1">Reference:</strong>
+                      <span className="col-span-2 font-bold">{orderNumber}</span>
+                    </div>
                   </div>
-                  <div className="grid grid-cols-3 gap-2">
-                    <strong className="col-span-1">Account:</strong>
-                    <span className="col-span-2">Rare & Fine Books Ltd.</span>
+                ) : (
+                  <div className="bg-white p-4 text-gray-600 border border-gray-200">
+                    Loading payment details...
                   </div>
-                  <div className="grid grid-cols-3 gap-2">
-                    <strong className="col-span-1">Number:</strong>
-                    <span className="col-span-2">1234-5678-9012-3456</span>
-                  </div>
-                  <div className="grid grid-cols-3 gap-2">
-                    <strong className="col-span-1">SWIFT:</strong>
-                    <span className="col-span-2">NTBKUS33</span>
-                  </div>
-                  <div className="grid grid-cols-3 gap-2 pt-2 border-t border-gray-200">
-                    <strong className="col-span-1">Amount:</strong>
-                    <span className="col-span-2 text-lg font-bold">${getTotal().toFixed(2)}</span>
-                  </div>
-                  <div className="grid grid-cols-3 gap-2">
-                    <strong className="col-span-1">Reference:</strong>
-                    <span className="col-span-2 font-bold">{orderNumber}</span>
-                  </div>
-                </div>
+                )}
                 <p className="mt-4 text-sm text-gray-600">
-                  <strong>Important:</strong> Please include order number {orderNumber} as your payment reference. 
+                  <strong>Important:</strong> Please include order number {orderNumber} as your payment reference.
                   We'll process your order within 24 hours of receiving payment.
                 </p>
               </div>
@@ -790,22 +953,22 @@ export default function BookstoreApp() {
                   {cart.map(item => (
                     <div key={item.isbn} className="flex justify-between text-sm">
                       <span>{item.title} × {item.quantity}</span>
-                      <span>${(item.price * item.quantity).toFixed(2)}</span>
+                      <span>€{(item.price * item.quantity).toFixed(2)}</span>
                     </div>
                   ))}
                 </div>
                 <div className="border-t border-gray-300 pt-3 space-y-1">
                   <div className="flex justify-between text-sm">
                     <span>Subtotal:</span>
-                    <span>${getSubtotal().toFixed(2)}</span>
+                    <span>€{getSubtotal().toFixed(2)}</span>
                   </div>
                   <div className="flex justify-between text-sm">
                     <span>Delivery:</span>
-                    <span>${getDeliveryPrice().toFixed(2)}</span>
+                    <span>€{getDeliveryPrice().toFixed(2)}</span>
                   </div>
                   <div className="flex justify-between font-bold text-lg pt-2 border-t border-gray-300">
                     <span>Total:</span>
-                    <span>${getTotal().toFixed(2)}</span>
+                    <span>€{getTotal().toFixed(2)}</span>
                   </div>
                 </div>
               </div>
@@ -838,18 +1001,18 @@ export default function BookstoreApp() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12">
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8 mb-8">
             <div>
-              <h3 className="font-serif text-lg mb-4">About Us</h3>
+              <h3 className="font-bold text-lg mb-4">About Us</h3>
               <p className="text-sm text-gray-600">
-                Rare & Fine Books is a family-run bookstore dedicated to curating 
+                Ciengarnia is a family-run bookstore dedicated to curating
                 exceptional literary works for discerning collectors and readers.
               </p>
             </div>
             <div>
-              <h3 className="font-serif text-lg mb-4">Contact</h3>
+              <h3 className="font-bold text-lg mb-4">Contact</h3>
               <div className="space-y-2 text-sm text-gray-600">
                 <p className="flex items-center gap-2">
                   <Mail className="w-4 h-4" />
-                  contact@rarefinebooks.com
+                  contact@ciengarnia.com
                 </p>
                 <p className="flex items-center gap-2">
                   <Phone className="w-4 h-4" />
@@ -858,20 +1021,31 @@ export default function BookstoreApp() {
               </div>
             </div>
             <div>
-              <h3 className="font-serif text-lg mb-4">Information</h3>
+              <h3 className="font-bold text-lg mb-4">Information</h3>
               <ul className="space-y-2 text-sm text-gray-600">
-                <li>Shipping & Delivery</li>
-                <li>Returns Policy</li>
-                <li>Privacy Policy</li>
-                <li>Terms & Conditions</li>
+                <li><a href="/shipping-delivery" className="hover:text-black transition">Shipping & Delivery</a></li>
+                <li><a href="/returns-policy" className="hover:text-black transition">Returns Policy</a></li>
+                <li><a href="/privacy-policy" className="hover:text-black transition">Privacy Policy</a></li>
+                <li><a href="/cookie-policy" className="hover:text-black transition">Cookie Policy</a></li>
+                <li><a href="/data-rights" className="hover:text-black transition">Your Data Rights</a></li>
+                <li><a href="/data-retention" className="hover:text-black transition">Data Retention</a></li>
+                <li><a href="/terms-conditions" className="hover:text-black transition">Terms & Conditions</a></li>
               </ul>
             </div>
           </div>
-          <div className="border-t border-gray-300 pt-8 text-center text-sm text-gray-600">
-            <p>© 2025 Rare & Fine Books. All rights reserved.</p>
+          <div className="border-t border-gray-300 pt-8">
+            <div className="text-center text-sm text-gray-600 mb-4">
+              <p>© 2025 Ciengarnia. All rights reserved.</p>
+            </div>
+            <div className="text-center text-xs bg-green-50 border border-green-200 rounded-lg p-3 text-green-900">
+              <strong>✓ GDPR Compliant</strong> - Your privacy and data protection are our priority. <a href="/privacy-policy" className="underline hover:no-underline font-semibold">View our Privacy Policy</a>
+            </div>
           </div>
         </div>
       </footer>
+
+      {/* Privacy Notice Banner */}
+      <PrivacyNotice />
     </div>
   );
 }
