@@ -63,7 +63,29 @@ export default function BookstoreApp() {
       const response = await fetch(`${API_URL}/books`);
       if (!response.ok) throw new Error('Failed to load books');
       const data = await response.json();
-      setBooks(data);
+
+      // Load Scaleway images for each book
+      const booksWithImages = await Promise.all(
+        data.map(async (book) => {
+          try {
+            const imgResponse = await fetch(`${API_URL}/books/${book.isbn}/images`);
+            if (imgResponse.ok) {
+              const images = await imgResponse.json();
+              if (images.length > 0) {
+                // Use the primary image or first image
+                const primaryImage = images.find(img => img.is_primary) || images[0];
+                return { ...book, image_url: primaryImage.scaleway_url };
+              }
+            }
+          } catch (err) {
+            console.error(`Error loading images for ${book.isbn}:`, err);
+          }
+          // Return book with original image_url if no Scaleway images found
+          return book;
+        })
+      );
+
+      setBooks(booksWithImages);
       setError(null);
     } catch (err) {
       console.error('Error loading books:', err);
